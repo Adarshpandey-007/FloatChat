@@ -7,23 +7,6 @@ Designed as an enterprise-grade Proof of Concept (PoC) for the Smart India Hacka
 
 ---
 
-## 🎯 Interview Quick-Reference: Alignment with HCL Gen AI Developer Role
-This project serves as a live, end-to-end demonstration of the mandatory and preferred technical skills requested in the **HCL Gen AI Developer** job description:
-
-| HCL Required Key Skill | How It Is Implemented in FloatChat / OceanGPT | Codebase Reference |
-| :--- | :--- | :--- |
-| **Python & OOP Ingestion** | Python-based NetCDF binary parser reading spatial data arrays, performing Quality Control (QC) filtering, and using pandas/numpy for structural sanitization. | [ingest_argo.py](file:///c:/Users/HP/Desktop/OceanGPT/FloatChat/backend/scripts/ingest_argo.py) |
-| **Model Context Protocol (MCP)** | Modular FastMCP server over SSE (Server-Sent Events) exposing custom database, profile search, and platform health check tools to LLM agents. | [mcp_server.py](file:///c:/Users/HP/Desktop/OceanGPT/FloatChat/backend/mcp_server.py) |
-| **Agentic AI & Tool-Calling** | Multi-tool chaining reasoning loop using Gemini/LangChain. The agent parses geographical queries and dynamically schedules tools (`get_ocean_profile`, `search_ocean_area`). | [mcp_server.py](file:///c:/Users/HP/Desktop/OceanGPT/FloatChat/backend/mcp_server.py) |
-| **RAG & Vector Search** | Metadata-rich document parsing, chunking, and embedding generation inside **ChromaDB** with Cosine Distance indexing for fast float discovery. | [ingest_argo.py](file:///c:/Users/HP/Desktop/OceanGPT/FloatChat/backend/scripts/ingest_argo.py#L90-L98) |
-| **Relational / Geospatial DB** | PostgreSQL/PostGIS schemas with spatial indices (`GIST`), structured tables for measurements and profiles, and coordinate-based Havensine calculations. | [schema.sql](file:///c:/Users/HP/Desktop/OceanGPT/FloatChat/docs/05_database/schema.sql) |
-| **LLMOps & API Resiliency** | Custom **5-Key Sequential Rotation Mechanism** to circumvent Gemini API rate limits (429/403) and ensure maximum uptime. | `/src/app/api/query` |
-| **Specialized Agents** | Multi-agent setups: **Coastal Planner Agent** (wizard + impact assessment) & **Maritime Legal Agent** (treaties & zoning constraints). | `/src/app/planner`, `/src/app/legal` |
-| **Next.js & Frontend Styling** | Tailwind-driven dark-mode glassmorphic theme, responsive state management via **Zustand**, Leaflet maps, and depth-inverted Plotly graphs. | `/src/components/visualizations` |
-| **Robust Testing (Jest)** | Comprehensive test suites for API schemas, UI stat cards, document loaders, and file upload validators with 42/42 passing tests. | `/src/tests` |
-
----
-
 ## 🏗 System Architecture & Flow
 
 ```
@@ -195,8 +178,8 @@ npm test
 
 ---
 
-## 🎤 Presentation Runbook (For the Interview Demo)
-Use this 10-minute flow to demonstrate your development work to the recruiters:
+## 🎤 Presentation Runbook
+Use this 10-minute flow to demonstrate the platform:
 
 1. **Introduction (1 min):** Showcase the landing page (`http://localhost:3000`), explaining the dark glassmorphic ocean theme, custom Tailwind tokens, and accessibility enhancements (skip links, reduced motion detection).
 2. **Specialist Agents (3 mins):**
