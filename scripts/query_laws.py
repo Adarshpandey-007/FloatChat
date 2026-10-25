@@ -5,7 +5,7 @@ import chromadb
 from chromadb.utils import embedding_functions
 
 def query_laws(query_text, jurisdiction=None, n_results=3):
-    CHROMA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "chroma_data")
+    CHROMA_PATH = os.path.join(os.path.dirname(__file__), "..", "chroma_data")
     client = chromadb.PersistentClient(path=os.path.abspath(CHROMA_PATH))
     
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(

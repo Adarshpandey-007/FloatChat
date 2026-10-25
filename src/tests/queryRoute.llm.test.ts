@@ -1,37 +1,40 @@
 /** @jest-environment node */
 import { POST } from '../app/api/query/route';
 
-jest.mock('@google/generative-ai', () => {
+jest.mock('../lib/llm/client', () => {
   return {
-    GoogleGenerativeAI: jest.fn().mockImplementation(() => {
+    DEFAULT_MODEL: 'openai/gpt-oss-120b',
+    mcpToolsToOpenAITools: jest.fn().mockReturnValue([]),
+    getGroqClient: jest.fn().mockImplementation(() => {
       return {
-        getGenerativeModel: jest.fn().mockImplementation(() => {
-          return {
-            startChat: jest.fn().mockImplementation(() => {
+        chat: {
+          completions: {
+            create: jest.fn().mockImplementation(async () => {
               return {
-                sendMessage: jest.fn().mockImplementation(async () => {
-                  return {
-                    response: {
-                      text: () => 'LLM ANSWER MOCK',
-                      functionCalls: () => []
+                choices: [
+                  {
+                    message: {
+                      content: 'LLM ANSWER MOCK',
+                      tool_calls: []
                     }
-                  };
-                })
+                  }
+                ]
               };
             })
-          };
-        })
+          }
+        }
       };
     })
   };
 });
 
-// Simulate env presence
-process.env.GEMINI_API_KEY = 'test-key';
-
 describe('POST /api/query with LLM', () => {
   it('returns llmUsed true when key present and LLM returns text', async () => {
-    const req = new Request('http://localhost/api/query', { method: 'POST', body: JSON.stringify({ text: 'show temperature profile' }), headers: { 'content-type': 'application/json' } });
+    const req = new Request('http://localhost/api/query', { 
+      method: 'POST', 
+      body: JSON.stringify({ text: 'show temperature profile' }), 
+      headers: { 'content-type': 'application/json' } 
+    });
     const res: any = await POST(req as unknown as Request);
     const json = await res.json();
     expect(json.llmUsed).toBe(true);

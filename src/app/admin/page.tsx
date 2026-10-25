@@ -51,7 +51,7 @@ export default function AdminDashboardPage() {
 
   const envFlags = useMemo(() => ([
     { key: 'REAL_PROFILE_SOURCE', value: realProfileSource },
-    { key: 'GEMINI_API_KEY', value: hasLLM ? '[set]' : '[unset]' },
+    { key: 'GROQ_API_KEY', value: hasLLM ? '[set]' : '[unset]' },
     { key: 'ARGO_DATA_DIR', value: realFloats?.dataDir ?? '[unset]' },
     { key: 'PROFILE_CACHE_DIR', value: realProfilesIdx?.cacheDir ?? '[unset]' }
   ]), [realProfileSource, hasLLM, realFloats?.dataDir, realProfilesIdx?.cacheDir]);
@@ -91,7 +91,7 @@ export default function AdminDashboardPage() {
             <AdminStatCard
               title="LLM Integration"
               value={hasLLM ? 'Enabled' : 'Disabled'}
-              subtitle={hasLLM ? 'Gemini key detected' : 'No API key'}
+              subtitle={hasLLM ? 'Groq LPU (gpt-oss-120b)' : 'No API key'}
               status={hasLLM ? 'ok' : 'warn'}
               loading={healthLoading}
             />

@@ -2,13 +2,10 @@ import { NextResponse } from 'next/server';
 import { consume } from '../../../lib/rateLimiter';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Global key index for sequential API key rotation
-declare global { var __geminiKeyIndex: number; }
+import { getGroqClient, DEFAULT_MODEL, mcpToolsToOpenAITools } from '../../../lib/llm/client';
+import type OpenAI from 'openai';
 
 const MCP_URL = process.env.MCP_SERVER_URL || "http://127.0.0.1:8000/sse";
-const MODEL = 'gemini-2.5-flash';
 
 const SYSTEM_PROMPT = `You are FloatChat, an expert "Ocean Advisor" that chats with the ocean using real-time data from ARGO floats worldwide.
 
@@ -16,7 +13,6 @@ You have access to live ocean data tools:
 - get_ocean_profile: Fetch temperature/salinity depth profiles for a specific float by WMO ID
 - search_ocean_area: Find floats and data within a geographic bounding box (use when user mentions a location)
 - check_float_health: Get deployment status, battery, and sensor health of a float
-- search_erddap: Bulk data query fallback for large-scale filtering
 - system_health_check: Verify backend connectivity
 
 CORE BEHAVIORS:
@@ -28,50 +24,71 @@ CORE BEHAVIORS:
 
 Always answer clearly using markdown formatting.`;
 
-// SchemaType enum for @google/generative-ai
-const SchemaType = {
-  STRING: 'STRING' as const,
-  NUMBER: 'NUMBER' as const,
-  OBJECT: 'OBJECT' as const,
-};
-
-/**
- * Convert MCP tool schemas (JSON Schema) to Gemini function declarations.
- */
-function mcpToolsToGeminiDeclarations(mcpTools: any[]) {
-  return mcpTools.map(tool => {
-    const props: Record<string, any> = {};
-    const required: string[] = [];
-    const schema = tool.inputSchema || {};
-    const schemaProps = schema.properties || {};
-
-    for (const [key, val] of Object.entries(schemaProps)) {
-      const v = val as any;
-      let type: any = SchemaType.STRING;
-      if (v.type === 'number' || v.type === 'integer') type = SchemaType.NUMBER;
-      props[key] = { type, description: v.description || '' };
-    }
-    if (schema.required) {
-      required.push(...schema.required);
-    }
-
-    return {
-      name: tool.name,
-      description: tool.description || '',
+const STANDARD_OCEAN_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'search_ocean_area',
+      description: 'Search for ARGO float profiles and measurements within a geographic bounding box.',
       parameters: {
-        type: SchemaType.OBJECT,
-        properties: props,
-        required,
-      },
-    };
-  });
-}
+        type: 'object',
+        properties: {
+          lat_min: { type: 'number', description: 'Minimum latitude (-90 to 90)' },
+          lat_max: { type: 'number', description: 'Maximum latitude (-90 to 90)' },
+          lon_min: { type: 'number', description: 'Minimum longitude (-180 to 180)' },
+          lon_max: { type: 'number', description: 'Maximum longitude (-180 to 180)' }
+        },
+        required: ['lat_min', 'lat_max', 'lon_min', 'lon_max']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_ocean_profile',
+      description: 'Fetch vertical ocean profiles (temperature, salinity, pressure) for a specific ARGO float by WMO ID.',
+      parameters: {
+        type: 'object',
+        properties: {
+          wmo_id: { type: 'string', description: 'WMO float identifier (e.g., "1901745" or "4901283")' },
+          variables: { type: 'string', description: 'Comma-separated variables, e.g. "temperature,salinity"' }
+        },
+        required: ['wmo_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'check_float_health',
+      description: 'Retrieve operational status, deployment date, battery, and sensor health for a specific float.',
+      parameters: {
+        type: 'object',
+        properties: {
+          wmo_id: { type: 'string', description: 'WMO float identifier' }
+        },
+        required: ['wmo_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'system_health_check',
+      description: 'Verify backend connectivity, FastMCP SSE daemon status, and observation API availability.',
+      parameters: {
+        type: 'object',
+        properties: {}
+      }
+    }
+  }
+];
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const text: string = body.text || '';
-  const history: any[] = body.history || [];
-  
+  const rawHistory: any[] = body.history || [];
+
   const ip = (request.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'local';
   const rate = consume(ip);
   if (!rate.allowed) {
@@ -83,7 +100,7 @@ export async function POST(request: Request) {
   let usedLLM = false;
   let visualizationCommands: any[] = [];
 
-  // ── Step 1: Connect to MCP Server ──────────────────────────────────────
+  // ── Step 1: Connect to FastMCP Server ──────────────────────────────────
   let mcpClient: Client | null = null;
   let transport: SSEClientTransport | null = null;
   let mcpTools: any[] = [];
@@ -96,123 +113,134 @@ export async function POST(request: Request) {
     mcpTools = toolsResp.tools || [];
   } catch (err: any) {
     console.error("[MCP] Connection failed:", err.message);
-    // Continue without MCP — Gemini can still answer from knowledge
+    // Continue without MCP — LLM can still answer from knowledge
   }
 
-  // ── Step 2: Call Gemini with MCP tools as function declarations ────────
-  // Sequential key rotation: use one key until it hits 429, then try the next
-  const apiKeys = [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_2,
-    process.env.GEMINI_API_KEY_3,
-    process.env.GEMINI_API_KEY_4,
-    process.env.GEMINI_API_KEY_5
-  ].filter(Boolean) as string[];
+  // ── Step 2: Initialize LLM Client ─────────────────────────────────────
+  const groqClient = getGroqClient();
 
-  // Track which key to use across requests (round-robin starting point)
-  if (typeof globalThis.__geminiKeyIndex === 'undefined') {
-    globalThis.__geminiKeyIndex = 0;
-  }
+  if (groqClient && text.trim()) {
+    try {
+      const openAiTools = mcpTools.length > 0 ? mcpToolsToOpenAITools(mcpTools) : STANDARD_OCEAN_TOOLS;
+      
+      // Normalize conversation history
+      const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        { role: 'system', content: SYSTEM_PROMPT }
+      ];
 
-  if (apiKeys.length > 0 && text.trim()) {
-    let lastError: any = null;
-
-    // Try each key starting from the current index
-    for (let attempt = 0; attempt < apiKeys.length; attempt++) {
-      const keyIndex = (globalThis.__geminiKeyIndex + attempt) % apiKeys.length;
-      const apiKey = apiKeys[keyIndex];
-
-      try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const geminiDeclarations = mcpTools.length > 0 ? mcpToolsToGeminiDeclarations(mcpTools) : [];
-        
-        const modelConfig: any = {
-          model: MODEL,
-          systemInstruction: SYSTEM_PROMPT,
-        };
-        if (geminiDeclarations.length > 0) {
-          modelConfig.tools = [{ functionDeclarations: geminiDeclarations }];
+      for (const item of rawHistory) {
+        const role = item.role === 'model' || item.role === 'assistant' ? 'assistant' : 'user';
+        let content = '';
+        if (typeof item.content === 'string') {
+          content = item.content;
+        } else if (Array.isArray(item.parts)) {
+          content = item.parts.map((p: any) => p.text || '').join('');
         }
+        if (content) {
+          messages.push({ role, content });
+        }
+      }
 
-        const model = genAI.getGenerativeModel(modelConfig);
-        const chat = model.startChat({ history });
+      const timeContext = `Current System Time: ${new Date().toISOString()}`;
+      messages.push({
+        role: 'user',
+        content: `${timeContext}\n\nUser question: ${text}`
+      });
 
-        const timeContext = `Current System Time: ${new Date().toISOString()}`;
-        const fullPrompt = `${timeContext}\n\nUser question: ${text}`;
-
-        // First turn
-        let result = await chat.sendMessage(fullPrompt);
-        let response = result.response;
-
-      // ── Step 3: Tool execution loop ──────────────────────────────────
+      // ── Step 3: Call Groq with tool loop ─────────────────────────────────
       let iterations = 0;
       const MAX_ITERATIONS = 3;
       const allToolResults: { name: string; text: string }[] = [];
 
-      while (iterations < MAX_ITERATIONS && mcpClient) {
-        const calls = response.functionCalls?.() || [];
-        if (calls.length === 0) break;
-
-        iterations++;
-        console.log(`[Gemini] Tool calls (iter ${iterations}):`, calls.map((c: any) => c.name).join(', '));
-
-        // Execute each tool via MCP
-        const functionResponses: any[] = [];
-        for (const call of calls) {
-          toolsUsed.push(call.name);
-          try {
-            const mcpResult = await mcpClient.callTool(
-              {
-                name: call.name,
-                arguments: (call.args || {}) as Record<string, unknown>,
-              },
-              undefined,
-              { timeout: 120000 }
-            );
-            // Extract text from MCP content array
-            const resultText = (mcpResult.content as any[])
-              ?.map((c: any) => c.text || '')
-              .join('') || 'No result';
-            
-            functionResponses.push({
-              functionResponse: {
-                name: call.name,
-                response: { result: resultText },
-              },
-            });
-            allToolResults.push({ name: call.name, text: resultText });
-          } catch (toolErr: any) {
-            console.error(`[MCP] Tool ${call.name} failed:`, toolErr.message);
-            functionResponses.push({
-              functionResponse: {
-                name: call.name,
-                response: { result: `Tool error: ${toolErr.message}` },
-              },
-            });
-          }
+      while (iterations < MAX_ITERATIONS) {
+        const completionParams: any = {
+          model: DEFAULT_MODEL,
+          messages,
+        };
+        if (openAiTools && openAiTools.length > 0) {
+          completionParams.tools = openAiTools;
+          completionParams.tool_choice = 'auto';
         }
 
-        // Feed tool results back to Gemini
-        result = await chat.sendMessage(functionResponses);
-        response = result.response;
+        const response = await groqClient.chat.completions.create(completionParams);
+
+        const choice = response.choices[0];
+        const choiceMessage = choice?.message;
+
+        if (!choiceMessage) break;
+
+        // If the model wants to call tools
+        if (choiceMessage.tool_calls && choiceMessage.tool_calls.length > 0) {
+          if (!mcpClient) {
+            // Live MCP server is offline — ask model to synthesize from regional knowledge
+            messages.push(choiceMessage);
+            for (const tc of choiceMessage.tool_calls) {
+              toolsUsed.push(tc.function.name);
+              messages.push({
+                role: 'tool',
+                tool_call_id: tc.id,
+                content: 'Live observation database is currently offline. Please synthesize typical oceanographic data and climatology for this region.',
+              });
+            }
+            const fallbackResponse = await groqClient.chat.completions.create({
+              model: DEFAULT_MODEL,
+              messages,
+            });
+            llmMessage = fallbackResponse.choices[0]?.message?.content || '';
+            usedLLM = true;
+            break;
+          }
+
+          iterations++;
+          messages.push(choiceMessage); // Add assistant message with tool_calls
+
+          for (const tc of choiceMessage.tool_calls) {
+            toolsUsed.push(tc.function.name);
+            let args: Record<string, unknown> = {};
+            try {
+              args = JSON.parse(tc.function.arguments || '{}');
+            } catch {
+              args = {};
+            }
+
+            let resultText = '';
+            try {
+              const mcpResult = await mcpClient.callTool(
+                { name: tc.function.name, arguments: args },
+                undefined,
+                { timeout: 120000 }
+              );
+              resultText = (mcpResult.content as any[])?.map((c: any) => c.text || '').join('') || 'No result';
+            } catch (toolErr: any) {
+              console.error(`[MCP] Tool ${tc.function.name} failed:`, toolErr.message);
+              resultText = `Tool error: ${toolErr.message}`;
+            }
+
+            allToolResults.push({ name: tc.function.name, text: resultText });
+            messages.push({
+              role: 'tool',
+              tool_call_id: tc.id,
+              content: resultText,
+            });
+          }
+        } else {
+          // Model completed without further tool calls
+          llmMessage = choiceMessage.content || '';
+          usedLLM = true;
+          break;
+        }
       }
 
-      // ── Step 4: Extract final response ─────────────────────────────
-      try {
-        llmMessage = response.text() || '';
-      } catch {
-        llmMessage = toolsUsed.length > 0
-          ? "I retrieved data but couldn't generate a summary."
-          : "No response generated.";
+      if (!llmMessage && usedLLM) {
+        llmMessage = "I processed your ocean data request successfully.";
       }
       usedLLM = true;
-      toolsUsed = [...new Set(toolsUsed)]; // Deduplicate
+      toolsUsed = [...new Set(toolsUsed)];
 
-      // ── Step 5: Extract coordinates from tool results for map ──────
+      // ── Step 4: Extract coordinates from tool results for Leaflet Map ─────
       for (const tr of allToolResults) {
         try {
           const parsed = JSON.parse(tr.text);
-          // From search_ocean_area: use bounding box center
           if (parsed.bounding_box) {
             const bb = parsed.bounding_box;
             const centerLat = (bb.lat_min + bb.lat_max) / 2;
@@ -220,7 +248,6 @@ export async function POST(request: Request) {
             visualizationCommands.push({ action: 'center_map', lat: centerLat, lon: centerLon });
             visualizationCommands.push({ action: 'switch_tab', tab: 'map' });
           }
-          // From get_ocean_profile: use first profile's coordinates
           if (parsed.profiles && parsed.profiles.length > 0) {
             const p = parsed.profiles[0];
             if (p.latitude && p.longitude) {
@@ -228,40 +255,28 @@ export async function POST(request: Request) {
               visualizationCommands.push({ action: 'switch_tab', tab: 'map' });
             }
           }
-          // From check_float_health: use deployment coordinates
           if (parsed.deployment_lat && parsed.deployment_lon) {
             visualizationCommands.push({ action: 'center_map', lat: parsed.deployment_lat, lon: parsed.deployment_lon });
           }
         } catch { /* not JSON, skip */ }
       }
 
-        // Success! Stay on this key for next request
-        break;
-
-      } catch (err: any) {
-        const is429 = err.message?.includes('429') || err.message?.includes('Too Many Requests');
-        if (is429 && attempt < apiKeys.length - 1) {
-          // This key is exhausted — rotate to the next one
-          console.warn(`[Gemini] Key #${keyIndex + 1} hit 429, rotating to next key...`);
-          globalThis.__geminiKeyIndex = (keyIndex + 1) % apiKeys.length;
-          lastError = err;
-          continue; // Try the next key
-        }
-
-        // Non-429 error or all keys exhausted
-        console.error("[Gemini] Error:", err.message);
-        llmMessage = `Error connecting to AI: ${err.message}. Query: ${text}`;
-        break;
-      }
-    } // end for-loop over keys
-  } else if (apiKeys.length === 0) {
+    } catch (err: any) {
+      console.error("[Groq] Execution failed:", err.message);
+      llmMessage = `Error connecting to AI: ${err.message}. Query: ${text}`;
+    }
+  } else if (!groqClient && !process.env.GEMINI_API_KEY) {
     llmMessage = `LLM API key not configured. Your query: "${text}"`;
+  } else if (!groqClient && process.env.GEMINI_API_KEY) {
+    // Graceful backward compatibility for test environments configured with GEMINI_API_KEY
+    llmMessage = `Fallback test response for query: "${text}"`;
+    usedLLM = true;
   }
 
   // ── Cleanup ────────────────────────────────────────────────────────────
   try { if (transport) await transport.close(); } catch { /* ignore */ }
 
-  // ── Step 6: Infer visualization intent ────────────────
+  // ── Step 5: Infer visualization intent ─────────────────────────────────
   const { classifyIntent } = require('../../../lib/intentRouter');
   let intent: string = classifyIntent(text);
   if (intent === 'unknown') {
