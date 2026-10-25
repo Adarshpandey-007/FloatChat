@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { checkSpatialCompliance, searchLegalVectors } from '../../../../lib/mcp/legalTools';
-import { getGroqClient, DEFAULT_MODEL } from '../../../../lib/llm/client';
+import { getGroqClient, DEFAULT_MODEL, extractMessageContent } from '../../../../lib/llm/client';
 import type OpenAI from 'openai';
 
 const SYSTEM_PROMPT = `You are FloatChat's "Legal Expert", a specialized AI trained in multi-jurisdictional environmental law.
@@ -134,13 +134,29 @@ export async function POST(request: Request) {
           });
         }
       } else {
-        finalMessage = choiceMessage.content || '';
+        finalMessage = extractMessageContent(choiceMessage);
         break;
       }
     }
 
+    // If max iterations reached without generating a text response, synthesize from tool results
     if (!finalMessage) {
-      finalMessage = "I have reviewed your legal compliance query against the maritime regulations database.";
+      try {
+        const synthResp = await groqClient.chat.completions.create({
+          model: DEFAULT_MODEL,
+          messages: [
+            ...messages,
+            { role: 'user', content: 'Based on the spatial compliance checks and legal regulations gathered above, provide a comprehensive, structured legal assessment in Markdown.' }
+          ]
+        });
+        finalMessage = extractMessageContent(synthResp.choices[0]?.message);
+      } catch (synthErr) {
+        console.error('Synthesis error:', synthErr);
+      }
+    }
+
+    if (!finalMessage) {
+      finalMessage = "### Legal Assessment\n\nI have evaluated your query against maritime boundaries and coastal zoning laws. Please review the cited zones above for specific compliance constraints.";
     }
 
     return NextResponse.json({

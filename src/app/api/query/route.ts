@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { consume } from '../../../lib/rateLimiter';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { getGroqClient, DEFAULT_MODEL, mcpToolsToOpenAITools } from '../../../lib/llm/client';
+import { getGroqClient, DEFAULT_MODEL, mcpToolsToOpenAITools, extractMessageContent } from '../../../lib/llm/client';
 import type OpenAI from 'openai';
 
 const MCP_URL = process.env.MCP_SERVER_URL || "http://127.0.0.1:8000/sse";
@@ -186,7 +186,7 @@ export async function POST(request: Request) {
               model: DEFAULT_MODEL,
               messages,
             });
-            llmMessage = fallbackResponse.choices[0]?.message?.content || '';
+            llmMessage = extractMessageContent(fallbackResponse.choices[0]?.message);
             usedLLM = true;
             break;
           }
@@ -225,7 +225,7 @@ export async function POST(request: Request) {
           }
         } else {
           // Model completed without further tool calls
-          llmMessage = choiceMessage.content || '';
+          llmMessage = extractMessageContent(choiceMessage);
           usedLLM = true;
           break;
         }

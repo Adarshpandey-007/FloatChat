@@ -3,8 +3,9 @@ import { POST } from '../app/api/query/route';
 
 jest.mock('../lib/llm/client', () => {
   return {
-    DEFAULT_MODEL: 'openai/gpt-oss-120b',
+    DEFAULT_MODEL: 'qwen/qwen3.8-27b',
     mcpToolsToOpenAITools: jest.fn().mockReturnValue([]),
+    extractMessageContent: jest.fn().mockImplementation((m: any) => m?.content || m?.reasoning || ''),
     getGroqClient: jest.fn().mockImplementation(() => {
       return {
         chat: {

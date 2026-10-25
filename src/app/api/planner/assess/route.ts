@@ -4,7 +4,7 @@ import { executeGetNearestFloats } from '../../../../lib/mcp/toolExecutor';
 import { checkSpatialCompliance } from '../../../../lib/mcp/legalTools';
 import { geocodeLocation } from '../../../../lib/mcp/geocoding';
 import { query } from '../../../../lib/db';
-import { getGroqClient, DEFAULT_MODEL, extractTextFromPDF } from '../../../../lib/llm/client';
+import { getGroqClient, DEFAULT_MODEL, extractTextFromPDF, extractMessageContent } from '../../../../lib/llm/client';
 import type OpenAI from 'openai';
 
 const plannerTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
           });
         }
       } else {
-        finalMessage = choiceMessage.content || '';
+        finalMessage = extractMessageContent(choiceMessage);
         break;
       }
     }
