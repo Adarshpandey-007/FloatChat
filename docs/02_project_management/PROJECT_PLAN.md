@@ -2,7 +2,7 @@
 
 > Last updated: 2026-05-06  
 > Branch: `antigravity-work`  
-> Repo: https://github.com/Adarshpandey-007/OceanGPT
+> Repo: https://github.com/Adarshpandey-007/FloatChat
 
 ---
 

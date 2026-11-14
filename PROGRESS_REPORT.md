@@ -356,5 +356,64 @@ The current UI/UX (chat interface, map, depth-time plots, tabular summaries) is 
 ### Next Steps
 An updated Fast-Track Implementation Plan has been created to address these gaps, focusing on standing up a Python-based MCP Server, integrating ChromaDB, completing the Postgres ingestion script, and wiring the Next.js frontend as an MCP Client.
 
+## 14. Session 5 - Modern Web Guidance & Testing Pyramid Implementation (November 2026)
+
+### Objective
+Achieve 100% compliance with Google Chrome's **Modern Web Guidance** standards, eliminate legacy front-end patterns, and architect a robust **Testing Pyramid** balancing Unit, Component, API Integration, and Playwright E2E browser testing.
+
+### Key Milestones Delivered
+1. **Modern Web Guidance Compliance (0 Legacy Findings)**:
+   - **Standard CSS Scrollbars (`customize-scrollbar-color-and-thickness`)**: Replaced deprecated `::-webkit-scrollbar` pseudo-elements with standard CSS properties `scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);` and `scrollbar-width: thin;`. Wrapped WebKit selectors in `@supports not (scrollbar-color: auto)`.
+   - **Native Dark Mode (`color-scheme: dark`)**: Applied `color-scheme: dark;` to `html, body` to render browser-native controls, dropdowns, and form elements in dark theme.
+   - **Input Method Editor (IME) Composition Safety (`ime-safe-enter-submit`)**: Hardened `ChatPanel.tsx` Enter submission with `!e.nativeEvent.isComposing && e.keyCode !== 229` to prevent premature submission during Asian-language IME character conversion. Added `aria-label="Ask about ocean data"`.
+   - **Accessible Live Region Notifications (`persistent-toast-notifications`)**: Refactored `ToastProvider.tsx` container with `role="region" aria-label="Notifications" aria-live="polite"` and assigned `role="status"` to toast entries.
+   - **Accessible Data Table Semantics (`responsive-table`)**: Added `scope="col"` headers and focusable `role="region"` scrolling containers (`tabIndex={0}`) to `TablePanel.tsx` and `RecentProjectsTable.tsx`.
+   - **Scroll Performance**: Optimized `NavigationHeader.tsx` scroll listener using `{ passive: true }` and `requestAnimationFrame` ticks to protect Interaction to Next Paint (INP).
+   - **Content Security (`sanitize-untrusted-html`)**: Integrated DOMPurify client-side sanitization on `marked.parse` output to neutralize XSS vectors.
+
+2. **Testing Pyramid Implementation**:
+   - Structured script partitioning in `package.json`: `test:unit`, `test:component`, `test:integration`, `test:e2e`, and `test:coverage`.
+   - Expanded unit tests from 42 to **70 tests across 18 test suites (100% pass rate)**.
+   - Elevated `src/store/chatStore.ts` coverage from **14.81% to 100.0%**.
+   - Overall codebase line coverage increased to **76.7%** (Functions: **80.67%**).
+   - Configured **Playwright E2E browser automation** (`playwright.config.ts`), writing and executing user journeys in headless Chromium (`home-to-explorer.spec.ts`, `chat-workflow.spec.ts`) in **3.7s**.
+
+3. **Build & Type Health**:
+   - Zero TypeScript compilation errors (`tsc --noEmit`).
+   - Zero ESLint syntax errors (`next lint`).
+   - Clean production build: 21/21 routes statically and dynamically generated (`next build`).
+
+## 15. Session 6 - Leaflet Map Modularization & LLM Tool-Calling Architecture Hardening (November 2026)
+
+### Objective
+Diagnose and permanently resolve runtime warnings in the geospatial map controller, resolve LLM tool call validation failures on Groq Cloud, and verify live end-to-end multi-agent ocean intelligence queries.
+
+### Key Milestones Delivered
+1. **MapController React Hook Order Violation Fix (`MapPanel.tsx` -> `LeafletMap.tsx`)**:
+   - **Diagnosis**: Dynamic loading of `react-leaflet` inside `MapController` via `useEffect` caused `useMap` to execute conditionally (`useMap?.()`), injecting React's `useContext(MapContext)` on subsequent renders and triggering React's strict Hook order warning.
+   - **Resolution**: Modularized the map rendering layer by extracting an isolated client component, `LeafletMap.tsx`. Inside `LeafletMap.tsx`, `useMap()` is called unconditionally at the component top level. `MapPanel.tsx` imports `LeafletMap` dynamically (`ssr: false`) with a graceful skeleton fallback.
+   - **Verification**: Zero React hook order warnings in dev console; dynamic pan/zoom smoothly animates upon float selection.
+
+2. **Groq LPU Tool-Calling Architecture Hardening (`/api/query`)**:
+   - **Diagnosis**: The `qwen/qwen3.8-27b` model on Groq emitted unparsed XML tokens (`<tool_call><function=search_o...`) which Groq's tool validator mangled into invalid identifiers (`search_o]["area"` / `search_o forma`), returning HTTP 400 `tool_use_failed` errors.
+   - **Resolution**:
+     - Configured `openai/gpt-oss-120b` as the primary engine with `openai/gpt-oss-20b` fallback, delivering reliable OpenAI function-calling performance.
+     - Added defensive sanitization: incoming tool calls are validated against registered MCP tool identifiers with fuzzy correction.
+     - Added multi-tier fallback: if tool execution encounters a syntax error or 400 validation error, the route automatically retries with the fallback model or direct domain synthesis without exposing raw error bubbles to users.
+     - Added post-tool synthesis pass: after executing multi-turn tool loops, the LLM performs a dedicated synthesis step compiling findings, socio-economic impacts, and actionable recommendations.
+
+3. **Live End-to-End ARGO Ocean Intelligence Verification**:
+   - Query: `"nearest float 12N 70W"`
+   - FastMCP Server (`http://127.0.0.1:8000/sse`): Successfully dispatched `search_ocean_area`, `check_float_health`, and `get_ocean_profile`.
+   - Data Ingestion: Identified Float **4903629** with live CTD profile data (temperature 4.12–28.92 °C, salinity 34.83–37.13 PSU).
+   - Visualization Automation: Dispatched map centering commands and updated the Map tab automatically.
+
+4. **Testing Suite Results**:
+   - Unit Tests: 7/7 suites, 46/46 passed.
+   - Component Tests: 4/4 suites, 14/14 passed.
+   - Integration Tests: 8/8 suites, 14/14 passed.
+   - Playwright E2E: 2/2 browser specs passed in Chromium.
+   - Total Tests: 76 passing automated tests across all tiers.
+
 ---
 Prepared automatically as a consolidated progress artifact. Update sections 8–10 as roadmap priorities evolve.

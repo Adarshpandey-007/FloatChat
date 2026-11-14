@@ -23,9 +23,18 @@ export function NavigationHeader() {
 	const [scrolled, setScrolled] = useState(false);
 
 	useEffect(() => {
-		const onScroll = () => setScrolled(window.scrollY > 4);
+		let ticking = false;
+		const onScroll = () => {
+			if (!ticking) {
+				window.requestAnimationFrame(() => {
+					setScrolled(window.scrollY > 4);
+					ticking = false;
+				});
+				ticking = true;
+			}
+		};
 		onScroll();
-		window.addEventListener('scroll', onScroll);
+		window.addEventListener('scroll', onScroll, { passive: true });
 		return () => window.removeEventListener('scroll', onScroll);
 	}, []);
 

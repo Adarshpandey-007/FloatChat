@@ -65,3 +65,31 @@ Stripped all external API pings out of the `system_health_check` tool. The tool 
 ---
 **Conclusion:**
 The Phase 5 SOA migration is now fully stable. The frontend visualization modules and the Next.js Agent loop successfully stream 100% live data directly from the Python MCP service without relying on local databases or freezing on external network hiccups.
+
+
+## 6. React Hook Order Violation in MapController
+
+**Symptom:**
+In the browser console, React threw a high-priority warning:
+`Warning: React has detected a change in the order of Hooks called by MapController. Previous render: 9. useEffect, Next render: 9. useContext`.
+
+**Root Cause:**
+`MapController` was attempting to dynamically load `react-leaflet` inside a `useEffect` and conditionally invoked `const map = useMap?.()`. On initial render, `useMap` was null (0 hooks executed). Once imported, `useMap()` ran, invoking React-Leaflet's internal `useContext(MapContext)`. Introducing a hook conditionally on re-render directly violates React's Rules of Hooks.
+
+**Resolution:**
+Architecturally separated the Leaflet rendering tree into an isolated client-only component: `src/components/visualizations/LeafletMap.tsx`. Inside `LeafletMap.tsx`, `import { useMap } from 'react-leaflet'` is static, and `const map = useMap()` is executed unconditionally on every render. `MapPanel.tsx` loads `LeafletMap` using Next.js `dynamic(() => import('./LeafletMap'), { ssr: false })` with a loading skeleton.
+
+## 7. Groq Tool-Use Validation Failures & Malformed Function Names
+
+**Symptom:**
+Submitting queries like `"nearest float 12N 70W"` caused the chat interface to display an error bubble:
+`Error connecting to AI: 400 tool call validation failed: attempted to call tool 'search_o]["area"' which was not in request.tools`.
+
+**Root Cause:**
+The `qwen/qwen3.8-27b` model on Groq emitted unparsed XML-style tool tokens (`<tool_call><function=search_o...`) that Groq's tool validation pipeline failed to parse cleanly, corrupting the tool name into `search_o]["area"` or `search_o forma`. Furthermore, `/api/query/route.ts` forwarded the raw 400 validation error to the client without attempting fallback.
+
+**Resolution:**
+1. Upgraded the default LLM engine to `openai/gpt-oss-120b` with `openai/gpt-oss-20b` fallback, which strictly follows the standard OpenAI function-calling schema on Groq.
+2. Added defensive tool name sanitization and fuzzy matching against registered FastMCP tools before execution.
+3. Added try-catch fallback retry loops: if tool calling fails with a 400 error, the route automatically retries with the fallback model or performs direct domain synthesis.
+4. Added a post-tool execution synthesis pass so multi-turn tool loops always culminate in structured findings, impacts, and recommendations.

@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '../store/chatStore';
 import { classifyIntent, buildAssistantHint } from '../lib/intentRouter';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 // Tool display names
 const TOOL_LABELS: Record<string, { label: string; icon: string }> = {
@@ -84,8 +85,12 @@ export function ChatPanel({ onSwitchTab }: { onSwitchTab: (t: 'map' | 'plot' | '
       return <span>{content}</span>;
     }
     
-    // Parse markdown for assistant messages
-    const html = marked.parse(content, { breaks: true, gfm: true });
+    // Parse and sanitize markdown for assistant messages
+    const rawHtml = marked.parse(content, { breaks: true, gfm: true }) as string;
+    const sanitizedHtml = typeof window !== 'undefined'
+      ? DOMPurify.sanitize(rawHtml)
+      : rawHtml;
+
     return (
       <div 
         className="prose prose-sm prose-invert max-w-none
@@ -96,7 +101,7 @@ export function ChatPanel({ onSwitchTab }: { onSwitchTab: (t: 'map' | 'plot' | '
           prose-code:text-cyan-300 prose-code:bg-white/10 prose-code:px-1 prose-code:rounded
           prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/10
           prose-a:text-cyan-400 prose-a:no-underline hover:prose-a:underline"
-        dangerouslySetInnerHTML={{ __html: html as string }} 
+        dangerouslySetInnerHTML={{ __html: sanitizedHtml }} 
       />
     );
   };
@@ -158,8 +163,15 @@ export function ChatPanel({ onSwitchTab }: { onSwitchTab: (t: 'map' | 'plot' | '
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSend()}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             placeholder="Ask about ocean data..."
+            aria-label="Ask about ocean data"
             disabled={pending}
             className="flex-1 bg-white/[0.06] border border-white/[0.1] rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-400/30 transition-all disabled:opacity-50"
           />

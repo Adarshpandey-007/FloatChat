@@ -1,7 +1,7 @@
 # FloatChat / OceanGPT — Progress Tracker
 
 > This is a living document. Update this file as you complete tasks.  
-> Branch: `antigravity-work` | Repo: https://github.com/Adarshpandey-007/OceanGPT
+> Branch: `antigravity-work` | Repo: https://github.com/Adarshpandey-007/FloatChat
 
 ---
 
@@ -80,6 +80,16 @@
 
 ## In Progress [/]
 
+
+### Session 9: Leaflet Map Modularization & LLM Agent Resiliency (Nov 2026)
+- [x] Modularized Leaflet rendering into isolated client component (`LeafletMap.tsx`)
+- [x] Resolved React Hook order violation in `MapController` via unconditional `useMap()` call
+- [x] Migrated primary LLM engine to Groq Cloud `openai/gpt-oss-120b` with `openai/gpt-oss-20b` fallback
+- [x] Hardened tool calling: tool name sanitization & fuzzy-matching against registered FastMCP tools
+- [x] Added automated tool-error fallback retry (switches model / answers directly without UI crash)
+- [x] Implemented multi-turn post-tool synthesis pass for complete oceanographic intelligence
+- [x] Live end-to-end verification with ARGO Float 4903629 and automated map centering
+
 ### Polish & Performance
 - [ ] Loading skeletons for all async panels
 - [ ] Streaming LLM responses
@@ -87,13 +97,31 @@
 
 ---
 
+### Session 8: Modern Web Guidance & Testing Pyramid (Nov 2026)
+- [x] Modern Web Guidance compliance audit (0 legacy findings across 33 guides)
+- [x] Standard CSS scrollbars (`scrollbar-color`, `scrollbar-width: thin`) & `color-scheme: dark`
+- [x] IME-safe chat composition submission (`isComposing` / `keyCode 229`)
+- [x] Client-side DOMPurify markdown XSS sanitization
+- [x] Accessible live region notifications (`role="region"` and `aria-live="polite"`)
+- [x] Semantic `scope="col"` table headers and keyboard scroll regions
+- [x] Passive scroll listener with `requestAnimationFrame` performance optimization
+- [x] Testing Pyramid partitioned test scripts (`test:unit`, `test:component`, `test:integration`, `test:e2e`, `test:coverage`)
+- [x] Added `chatStore.test.ts` (100% line coverage)
+- [x] Added `csvExport.test.ts` & `rateLimiter.test.ts` unit tests
+- [x] Added `chatPanel.test.tsx`, `toastProvider.test.tsx`, `tablePanel.test.tsx` component & accessibility tests
+- [x] Configured Playwright E2E browser test runner (`playwright.config.ts`)
+- [x] Authored and passed critical user journey browser tests (`home-to-explorer.spec.ts`, `chat-workflow.spec.ts`)
+- [x] Resolved all TypeScript compilation errors (`tsc --noEmit` clean)
+- [x] Resolved all ESLint syntax errors (`next lint` clean)
+- [x] Production build fully verified (21/21 routes generated)
+
+---
+
 ## Not Started [ ]
 
-### Deployment
-- [ ] Startup script (Next.js + Python MCP server)
-- [ ] Environment variable documentation for team
-- [ ] CI/CD pipeline
-- [ ] Production build verification
+### Deployment & CI/CD
+- [ ] Startup orchestrator script (concurrent Next.js + Python MCP server)
+- [ ] GitHub Actions workflow executing `npm run test:unit`, `npm run test:component`, and `npm run test:e2e`
 
 ---
 
@@ -101,13 +129,17 @@
 
 | Metric | Current Value |
 |--------|---------------|
-| Pages | 10 |
-| API Routes | 8 |
+| Pages / Routes | 21 (10 app pages, 11 API endpoints) |
 | Components | 25+ |
 | MCP Tools | 5/5 implemented |
-| Tests | 42 passing |
-| External APIs | 3 configured |
-| Git Commits | ~25+ on `antigravity-work` |
+| Jest Tests | **70 passing (18 suites)** |
+| E2E Tests | **2 passing (Playwright Chromium)** |
+| Test Coverage | **76.7% lines / 80.7% functions** |
+| Modern Web Guidance | **100% Compliant (0 findings)** |
+| TypeScript Health | **0 errors (`tsc --noEmit`)** |
+| ESLint Health | **0 errors (`next lint`)** |
+| External APIs | 3 configured (Argovis, OceanOPS, ERDDAP) |
+| Git Commits | ~30+ on `antigravity-work` |
 
 ---
 
@@ -115,6 +147,8 @@
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| Gemini API key limits (429/403) | Resolved | Fixed via 5-key sequential rotation |
-| Build completion not verified in terminal | Low | Pending manual check |
-| Non-blocking ESLint warnings remain | Low | Cosmetic only |
+| Gemini API key limits (429/403) | Resolved | Fixed via Groq LPU migration (`openai/gpt-oss-120b`) |
+| MapController React Hook Order | Resolved | Fixed via client isolation in `LeafletMap.tsx` |
+| Groq 400 Tool Call Validation | Resolved | Fixed via tool name sanitization & fallback retry |
+| Production build verification | Resolved | Verified (21/21 routes compiled cleanly) |
+| ESLint unescaped entity errors | Resolved | Fixed via standard `&quot;` HTML entities |

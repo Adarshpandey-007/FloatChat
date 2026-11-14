@@ -26,14 +26,14 @@ export function RecentProjectsTable({ projects }: RecentProjectsTableProps) {
       <div className="px-6 py-5 border-b border-white/[0.08]">
         <h2 className="text-lg font-semibold text-white">Recently Planned Projects</h2>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Recently Planned Projects Table">
         <table className="w-full text-left text-sm">
           <thead className="bg-white/[0.02] text-slate-400">
             <tr>
-              <th className="px-6 py-4 font-medium">Project Name</th>
-              <th className="px-6 py-4 font-medium">Type</th>
-              <th className="px-6 py-4 font-medium">Scale/Budget</th>
-              <th className="px-6 py-4 font-medium">Date Planned</th>
+              <th scope="col" className="px-6 py-4 font-medium">Project Name</th>
+              <th scope="col" className="px-6 py-4 font-medium">Type</th>
+              <th scope="col" className="px-6 py-4 font-medium">Scale/Budget</th>
+              <th scope="col" className="px-6 py-4 font-medium">Date Planned</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.05]">

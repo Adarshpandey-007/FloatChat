@@ -7,5 +7,6 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1'
   },
-  testRegex: '(/__tests__/.*|(\\.|/)(test|spec))\\.(tsx?|ts)$'
+  testRegex: '(/__tests__/.*|(\\.|/)(test|spec))\\.(tsx?|ts)$',
+  testPathIgnorePatterns: ['/node_modules/', '/.next/', '/e2e/']
 };

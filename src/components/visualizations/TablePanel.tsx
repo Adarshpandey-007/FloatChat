@@ -92,17 +92,17 @@ export function TablePanel() {
           Export CSV
         </button>
       </div>
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" tabIndex={0} role="region" aria-label="Profile Summaries Table">
         <table className="w-full text-xs">
           <thead className="bg-floatchat-subtle text-floatchat-ink sticky top-0">
           <tr>
-            <th className="text-left p-2">Profile</th>
-            <th className="text-left p-2">Cycle</th>
-            <th className="text-left p-2">Date (UTC)</th>
-            <th className="text-left p-2">Lat</th>
-            <th className="text-left p-2">Lon</th>
-            <th className="text-left p-2">Mean Temp</th>
-            <th className="text-left p-2">Mean Sal</th>
+            <th scope="col" className="text-left p-2">Profile</th>
+            <th scope="col" className="text-left p-2">Cycle</th>
+            <th scope="col" className="text-left p-2">Date (UTC)</th>
+            <th scope="col" className="text-left p-2">Lat</th>
+            <th scope="col" className="text-left p-2">Lon</th>
+            <th scope="col" className="text-left p-2">Mean Temp</th>
+            <th scope="col" className="text-left p-2">Mean Sal</th>
           </tr>
         </thead>
         <tbody>

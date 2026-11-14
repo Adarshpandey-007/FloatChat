@@ -26,10 +26,10 @@ FloatChat is an **agentic ocean intelligence platform** that lets users have nat
 ┌────────────────────────────────────────────────────────────┐
 │              NEXT.JS SERVER (port 3000)                    │
 │  ┌─────────────────────────────────────────────┐           │
-│  │  /api/query/route.ts (MCP Client)           │           │
+│  │  /api/query/route.ts (MCP Client & LPU Loop)│           │
 │  │  • Receives user text                       │           │
 │  │  • Connects to Python MCP Server via SSE    │           │
-│  │  • Passes Gemini-analyzed results to UI      │           │
+│  │  • Groq LPU tool-calling & synthesis loop   │           │
 │  └──────────────────────┬──────────────────────┘           │
 │                         │ SSE Transport                    │
 └─────────────────────────┬──────────────────────────────────┘
@@ -70,7 +70,7 @@ FloatChat is an **agentic ocean intelligence platform** that lets users have nat
 | **State Mgmt**     | Zustand              | Client-side chat & visualization state       |
 | **MCP Client**     | @modelcontextprotocol/sdk | Connects Next.js ↔ Python backend     |
 | **MCP Server**     | Python FastMCP       | Agentic tool orchestration                   |
-| **LLM**           | Google Gemini        | Natural language understanding & generation  |
+| **LLM Engine**     | Groq Cloud (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`) | High-speed OpenAI tool calling & oceanographic reasoning |
 | **Data: Profiles** | Argovis REST API     | Primary ocean data (temp, salinity, pressure)|
 | **Data: Metadata** | OceanOPS REST API    | Float health, deployment info, ownership     |
 | **Data: Fallback** | ERDDAP Tabledap      | Bulk/niche datasets, buoy data               |
@@ -103,11 +103,11 @@ User types: "Show me the temperature near the Maldives"
                           │            Returns: deployment date, battery, sensor health
                           │
                           ▼
-                    [Gemini LLM]
-                          │
-                          │ 4. Analyzes data, identifies trends
-                          │ 5. Generates human-readable summary
-                          │ 6. Returns visualization commands
+                    [Groq LPU Engine]
+                           │
+                           │ 4. Executes multi-turn tool loops with FastMCP
+                           │ 5. Synthesizes oceanographic intelligence (Finding -> Impact -> Recommendation)
+                           │ 6. Extracts coordinates & returns visualization commands
                           ▼
                     [/api/query response]
                           │
@@ -205,7 +205,8 @@ FloatChat/
 │   │   ├── ChatAppShell.tsx      # Chat layout shell
 │   │   ├── VisualizationTabs.tsx # Tab switcher (Map/Plot/Table)
 │   │   ├── visualizations/       # Data visualization panels
-│   │   │   ├── MapPanel.tsx      # Leaflet ocean map
+│   │   │   ├── MapPanel.tsx      # Leaflet map container & search bar
+│   │   │   ├── LeafletMap.tsx    # Client-isolated Leaflet rendering & MapController
 │   │   │   ├── PlotPanel.tsx     # Plotly depth profiles
 │   │   │   ├── TablePanel.tsx    # Tabular data view
 │   │   │   └── ProfileSummary.tsx
@@ -228,7 +229,45 @@ FloatChat/
 │   ├── store/                    # Zustand state management
 │   └── types/                    # TypeScript type definitions
 │
+├── e2e/                          # Playwright End-to-End browser user journeys
+│   ├── home-to-explorer.spec.ts  # Landing hero navigation flow
+│   └── chat-workflow.spec.ts     # Chat interaction & tab sync
+│
+├── playwright.config.ts          # Playwright test configuration
+├── jest.config.cjs               # Jest test configuration
 ├── PROGRESS_REPORT.md            # Historical progress log
 ├── DESIGN_SYSTEM.md              # Design tokens & guidelines
 └── README.md                     # Quick start & demo runbook
 ```
+
+---
+
+## 7. Testing Architecture & Quality Assurance
+
+FloatChat implements the **Testing Pyramid** methodology ensuring rapid local feedback and high deployment confidence:
+
+```
+                  ▲
+                 / \     [E2E / Playwright] (~10%)
+                /   \    Headless Chromium user journeys (e2e/*.spec.ts)
+               /-----\
+              /       \  [Integration & Component] (~20%)
+             /         \ Next.js route handlers & RTL component/a11y tests
+            /-----------\
+           /             \ [Unit / In-Memory] (~70%)
+          /               \ chatStore, geodesic math, rate limiter, validators
+         -------------------
+```
+
+### Test Hierarchy
+1. **Unit Layer (`npm run test:unit`)**: Tests pure business logic without network or I/O overhead (`chatStore.ts`, `rateLimiter.ts`, `csvExport.ts`, `uploadValidator.ts`, `haversine.ts`, `intentRouter.ts`).
+2. **Component Layer (`npm run test:component`)**: React Testing Library and accessibility tests ensuring ARIA live region support (`ToastProvider.tsx`), semantic table headers (`TablePanel.tsx`), IME composition safety, and DOMPurify XSS mitigation (`ChatPanel.tsx`).
+3. **Integration Layer (`npm run test:integration`)**: Tests Next.js route handlers (`/api/query`, `/api/profiles`), LLM fallback synthesis, and server error scenarios.
+4. **End-to-End Layer (`npm run test:e2e`)**: Playwright automation exercising critical user paths against a live Next.js runtime in headless Chromium.
+
+### Modern Web Standards Compliance
+- **CSS Scrollbars**: Modern `scrollbar-color` and `scrollbar-width` styling with legacy `@supports not (scrollbar-color: auto)` fallbacks.
+- **Native Dark Theme**: `color-scheme: dark` explicitly declared to synchronize browser-native widgets.
+- **IME Composition Guard**: Protection against premature Enter sends during multilingual character conversion candidates.
+- **Sanitization**: In-memory HTML sanitization via DOMPurify before DOM injection.
+
