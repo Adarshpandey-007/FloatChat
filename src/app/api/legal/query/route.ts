@@ -110,6 +110,7 @@ export async function POST(request: Request) {
         messages.push(choiceMessage);
 
         for (const tc of choiceMessage.tool_calls) {
+          if (!('function' in tc)) continue;
           toolsUsed.push(tc.function.name);
           let args: any = {};
           try {

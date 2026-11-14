@@ -95,7 +95,7 @@ export default function LegalExpertPage() {
           {messages.length === 0 && (
             <div className="text-center py-12">
               <div className="text-4xl mb-4">⚖️</div>
-              <p className="text-slate-400">Ask a legal question to begin.<br/>Try: "Can I build a port at 18.9N 72.8E?"</p>
+              <p className="text-slate-400">Ask a legal question to begin.<br/>Try: &quot;Can I build a port at 18.9N 72.8E?&quot;</p>
             </div>
           )}
           

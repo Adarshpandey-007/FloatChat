@@ -68,15 +68,30 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toasts, push, dismiss, clear }}>
       {children}
-      <div className="fixed z-40 top-4 right-4 flex flex-col gap-1 max-w-xs">
+      <div 
+        role="region" 
+        aria-label="Notifications" 
+        aria-live="polite" 
+        className="fixed z-40 top-4 right-4 flex flex-col gap-1 max-w-xs pointer-events-none"
+      >
         {toasts.map(t => (
-          <div key={t.id} className={`rounded-lg shadow-sm px-3 py-2 text-xs border bg-white/95 backdrop-blur flex items-center gap-2 transition-all duration-200 ${t.type === 'error' ? 'border-red-400 text-red-700 bg-red-50/95' : t.type === 'success' ? 'border-emerald-400 text-emerald-700 bg-emerald-50/95' : 'border-blue-400 text-blue-700 bg-blue-50/95'}`}>
+          <div 
+            key={t.id} 
+            role="status" 
+            className={`pointer-events-auto rounded-lg shadow-sm px-3 py-2 text-xs border bg-white/95 backdrop-blur flex items-center gap-2 transition-all duration-200 ${t.type === 'error' ? 'border-red-400 text-red-700 bg-red-50/95' : t.type === 'success' ? 'border-emerald-400 text-emerald-700 bg-emerald-50/95' : 'border-blue-400 text-blue-700 bg-blue-50/95'}`}
+          >
             <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${t.type === 'error' ? 'bg-red-500' : t.type === 'success' ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
             <div className="flex-1 leading-tight">
               {t.title && <div className="font-medium mb-0.5">{t.title}</div>}
               <div className="whitespace-pre-line">{t.message}</div>
             </div>
-            <button onClick={() => dismiss(t.id)} className="text-xs opacity-50 hover:opacity-80 transition-opacity ml-1">×</button>
+            <button 
+              onClick={() => dismiss(t.id)} 
+              aria-label="Dismiss notification"
+              className="text-xs opacity-50 hover:opacity-80 transition-opacity ml-1 p-0.5 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded"
+            >
+              ×
+            </button>
           </div>
         ))}
       </div>

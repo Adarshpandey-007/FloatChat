@@ -128,7 +128,7 @@ export function PlannerChat() {
             <div className="text-center py-12">
               <div className="text-4xl mb-4">🌿</div>
               <p className="text-slate-400">Describe your project, specify a location, or upload a plan to begin.</p>
-              <p className="text-sm text-slate-500 mt-2">Example: "I want to build a desalination plant near the Gulf of Kutch"</p>
+              <p className="text-sm text-slate-500 mt-2">Example: &quot;I want to build a desalination plant near the Gulf of Kutch&quot;</p>
             </div>
           )}
           

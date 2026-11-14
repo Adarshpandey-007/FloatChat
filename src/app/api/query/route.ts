@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { consume } from '../../../lib/rateLimiter';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { getGroqClient, DEFAULT_MODEL, mcpToolsToOpenAITools, extractMessageContent } from '../../../lib/llm/client';
+import { getGroqClient, DEFAULT_MODEL, FALLBACK_MODEL, mcpToolsToOpenAITools, extractMessageContent } from '../../../lib/llm/client';
 import type OpenAI from 'openai';
 
 const MCP_URL = process.env.MCP_SERVER_URL || "http://127.0.0.1:8000/sse";
@@ -162,19 +162,47 @@ export async function POST(request: Request) {
           completionParams.tool_choice = 'auto';
         }
 
-        const response = await groqClient.chat.completions.create(completionParams);
+        let response: any;
+        try {
+          response = await groqClient.chat.completions.create(completionParams);
+        } catch (callErr: any) {
+          console.error(`[Groq] Tool execution failed with ${completionParams.model}:`, callErr.message);
+          // If tool calling failed (e.g. 400 tool_use_failed or model formatting issue), retry with fallback model or direct synthesis
+          if (completionParams.tools) {
+            try {
+              console.log(`[Groq] Retrying with fallback model ${FALLBACK_MODEL}...`);
+              response = await groqClient.chat.completions.create({
+                model: FALLBACK_MODEL,
+                messages,
+                tools: openAiTools,
+                tool_choice: 'auto',
+              });
+            } catch (fallbackErr: any) {
+              console.log('[Groq] Retrying without tools for direct synthesis...');
+              response = await groqClient.chat.completions.create({
+                model: FALLBACK_MODEL,
+                messages,
+              });
+            }
+          } else {
+            throw callErr;
+          }
+        }
 
-        const choice = response.choices[0];
+        const choice = response.choices?.[0];
         const choiceMessage = choice?.message;
 
         if (!choiceMessage) break;
 
         // If the model wants to call tools
         if (choiceMessage.tool_calls && choiceMessage.tool_calls.length > 0) {
+          const registeredNames = new Set((openAiTools || []).map((t: any) => t.function.name));
+
           if (!mcpClient) {
             // Live MCP server is offline — ask model to synthesize from regional knowledge
             messages.push(choiceMessage);
             for (const tc of choiceMessage.tool_calls) {
+              if (!('function' in tc)) continue;
               toolsUsed.push(tc.function.name);
               messages.push({
                 role: 'tool',
@@ -195,7 +223,27 @@ export async function POST(request: Request) {
           messages.push(choiceMessage); // Add assistant message with tool_calls
 
           for (const tc of choiceMessage.tool_calls) {
-            toolsUsed.push(tc.function.name);
+            if (!('function' in tc)) continue;
+            let toolName = tc.function.name;
+
+            // Guard against corrupted or hallucinated tool names
+            if (!registeredNames.has(toolName)) {
+              const matched = Array.from(registeredNames).find(r => toolName.includes(r) || r.includes(toolName.replace(/[^a-zA-Z_]/g, '')));
+              if (matched) {
+                console.warn(`[Groq] Corrected corrupted tool name '${toolName}' -> '${matched}'`);
+                toolName = matched;
+              } else {
+                console.warn(`[Groq] Skipping unregistered tool call '${toolName}'`);
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: tc.id,
+                  content: `Tool ${toolName} is not available.`,
+                });
+                continue;
+              }
+            }
+
+            toolsUsed.push(toolName);
             let args: Record<string, unknown> = {};
             try {
               args = JSON.parse(tc.function.arguments || '{}');
@@ -206,17 +254,17 @@ export async function POST(request: Request) {
             let resultText = '';
             try {
               const mcpResult = await mcpClient.callTool(
-                { name: tc.function.name, arguments: args },
+                { name: toolName, arguments: args },
                 undefined,
                 { timeout: 120000 }
               );
               resultText = (mcpResult.content as any[])?.map((c: any) => c.text || '').join('') || 'No result';
             } catch (toolErr: any) {
-              console.error(`[MCP] Tool ${tc.function.name} failed:`, toolErr.message);
+              console.error(`[MCP] Tool ${toolName} failed:`, toolErr.message);
               resultText = `Tool error: ${toolErr.message}`;
             }
 
-            allToolResults.push({ name: tc.function.name, text: resultText });
+            allToolResults.push({ name: toolName, text: resultText });
             messages.push({
               role: 'tool',
               tool_call_id: tc.id,
@@ -231,8 +279,21 @@ export async function POST(request: Request) {
         }
       }
 
-      if (!llmMessage && usedLLM) {
-        llmMessage = "I processed your ocean data request successfully.";
+      // If tool iterations finished without a final text response, request final synthesis
+      if (!llmMessage && messages.length > 0) {
+        try {
+          const finalResponse = await groqClient.chat.completions.create({
+            model: DEFAULT_MODEL,
+            messages,
+          });
+          llmMessage = extractMessageContent(finalResponse.choices?.[0]?.message);
+        } catch (synthErr: any) {
+          console.error('[Groq] Final synthesis failed:', synthErr.message);
+        }
+      }
+
+      if (!llmMessage) {
+        llmMessage = "I processed your ocean data request successfully and updated the map visualization.";
       }
       usedLLM = true;
       toolsUsed = [...new Set(toolsUsed)];
@@ -263,7 +324,7 @@ export async function POST(request: Request) {
 
     } catch (err: any) {
       console.error("[Groq] Execution failed:", err.message);
-      llmMessage = `Error connecting to AI: ${err.message}. Query: ${text}`;
+      llmMessage = `I experienced a temporary communication hiccup querying ocean intelligence: ${err.message}. Please try again or specify an ARGO float ID or coordinates directly.`;
     }
   } else if (!groqClient && !process.env.GEMINI_API_KEY) {
     llmMessage = `LLM API key not configured. Your query: "${text}"`;

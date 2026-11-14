@@ -2,7 +2,7 @@
 
 > Last updated: 2026-05-06
 
-This document describes every MCP (Model Context Protocol) tool registered on the Python backend server. The LLM (Gemini) autonomously decides which tool(s) to invoke based on the user's natural language query.
+This document describes every MCP (Model Context Protocol) tool registered on the Python backend server. The LLM (Groq LPU Engine) autonomously decides which tool(s) to invoke based on the user's natural language query.
 
 ---
 
@@ -12,7 +12,7 @@ This document describes every MCP (Model Context Protocol) tool registered on th
 User Chat Message
      │
      ▼
-  Gemini LLM (decides tool)
+  Groq LPU Engine (`openai/gpt-oss-120b`) (decides tool)
      │
      ▼
   MCP Client (Next.js) ──SSE──► MCP Server (Python)

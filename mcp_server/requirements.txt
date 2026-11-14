@@ -1,5 +1,0 @@
-mcp
-psycopg2-binary
-chromadb
-sentence-transformers
-pydantic

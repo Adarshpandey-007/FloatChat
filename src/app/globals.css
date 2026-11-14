@@ -14,26 +14,39 @@ html, body {
   height: 100%; 
   background-color: #030B0E;
   color: #E0F2FE;
+  color-scheme: dark;
 }
 
 body { 
   font-feature-settings: "liga" on, "kern" on; 
 }
 
-/* Custom scrollbar for dark theme */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Custom scrollbar using standard CSS with legacy WebKit fallback */
+:root {
+  --scrollbar-thumb: rgba(0, 240, 255, 0.2);
+  --scrollbar-track: rgba(0, 0, 0, 0.2);
 }
-::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.2); 
+
+* {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
 }
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 240, 255, 0.2); 
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 240, 255, 0.4); 
+
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track); 
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb); 
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 240, 255, 0.4); 
+  }
 }
 
 /* Glassmorphism utility classes */

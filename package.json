@@ -10,14 +10,21 @@
     "lint": "next lint",
     "lint:strict": "eslint . --ext .ts,.tsx",
     "test": "jest --runInBand",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:unit": "jest haversine intentRouter uploadValidator csvExport rateLimiter docsPresence chatStore --runInBand",
+    "test:component": "jest chatPanel toastProvider tablePanel adminStatCard --runInBand",
+    "test:integration": "jest api queryRoute rateLimit realProfilesFetch adminPage docsIndexPage --runInBand",
+    "test:e2e": "playwright test",
+    "test:coverage": "jest --coverage --runInBand"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tailwindcss/typography": "^0.5.19",
+    "@types/dompurify": "^3.0.5",
     "clsx": "^2.1.1",
     "cross-fetch": "^4.1.0",
+    "dompurify": "^3.4.17",
     "leaflet": "^1.9.4",
     "marked": "^13.0.2",
     "next": "^14.2.33",
@@ -33,6 +40,7 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^14.3.1",
     "@types/jest": "^29.5.12",

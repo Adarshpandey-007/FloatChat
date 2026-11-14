@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 
-export const DEFAULT_MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
-export const FALLBACK_MODEL = process.env.GROQ_FALLBACK_MODEL || 'openai/gpt-oss-120b';
+export const DEFAULT_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+export const FALLBACK_MODEL = process.env.GROQ_FALLBACK_MODEL || 'openai/gpt-oss-20b';
 
 /**
  * Safely extracts assistant message text, falling back to reasoning/thinking if content is null.
